@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MPV控制器小組件
+Exec=/home/YOUR_USERNAME/bin/mpv_widget.py
+Icon=media-playback-start
+Terminal=false
+Categories=Audio;Player;
+
