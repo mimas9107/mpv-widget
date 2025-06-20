@@ -88,7 +88,7 @@ class MPVWidget:
         ##所以暫停 2秒讓 mpv建好mpvsocket取好資料在開始執行緒監聽
         # time.sleep(2)
 
-        for _ in range(30):
+        for _ in range(60):
             if os.path.exists(SOCKET_PATH):
                 try:
                     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:

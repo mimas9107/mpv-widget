@@ -2,7 +2,15 @@
 1. 捨棄 notify-send指令的 殭屍執行緒問題, 改採用 Notify來推送通知.
 2. 在 system tray的圖示下拉可以顯示目前播放曲目.
 3. 修正 mpv子執行緒的 mpvsocket與主程式的先後polling機制. 
+4. 補充：debug mpvsocket訊息工具指令, 
+```bash
+echo '{"command": ["observe_property", 1, "metadata"]}' | socat - /tmp/mpvsocket
 
+or
+
+echo '{"command": ["get_property", "metadata"]}' | socat - /tmp/mpvsocket
+
+```
 ---
 ### v1.0 2025/06/19 initial
 
