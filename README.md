@@ -1,3 +1,12 @@
+### v1.5 2025/06/20 
+1. 捨棄 notify-send指令的 殭屍執行緒問題, 改採用 Notify來推送通知.
+2. 在 system tray的圖示下拉可以顯示目前播放曲目.
+3. 修正 mpv子執行緒的 mpvsocket與主程式的先後polling機制. 
+
+---
+### v1.0 2025/06/19 initial
+
+---
 ### 功能說明
 一個用 Python 撰寫的 GNOME 系統圖示工具，點擊圖示即可播放或停止指定的網路串流（使用 mpv 播放器），支援：
 * GNOME system tray integration（使用 libayatana-appindicator3）
