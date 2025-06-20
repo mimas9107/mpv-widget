@@ -98,6 +98,7 @@ class MPVWidget:
         GLib.idle_add(self.status_item.set_label, f"▷ {display}")
         return True
 
+
     def on_stream_selected(self, widget, label, url):
         self.stop_playback()
         self.current_label = label
@@ -132,13 +133,30 @@ class MPVWidget:
         self.ipc_thread = threading.Thread(target=self.ipc_listen_loop, daemon=True)
         self.ipc_thread.start()
 
+    
+    def salt_title(self, title):
+        i=0
+        buf=""
+        if len(title)>24:
+            for c in title:
+               i=i+1
+               buf=buf+c
+               if(i%24==0):
+                   buf+="\n"
+                   i=0
+            title=buf
+        return title
+ 
     def update_status_title(self, title):
         if hasattr(self, "status_item"):
-            GLib.idle_add(self.status_item.set_label, f"▷ {title}")
+            GLib.idle_add(self.status_item.set_label, f"▷ {self.salt_title(title)}")
+#             GLib.idle_add(self.status_item.set_label, f"▷ {title}")
             GLib.idle_add(self.status_item.show)
             # 雖然 GNOME 可能不顯示
+#         GLib.idle_add(self.indicator.set_title, f"正在播放：{self.salt_title(title)}")
         GLib.idle_add(self.indicator.set_title, f"正在播放：{title}")
         self.start_marquee()
+
 
     def ipc_listen_loop(self):
         try:
