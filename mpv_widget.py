@@ -50,24 +50,53 @@ class MPVWidget:
 
         # 狀態顯示的 MenuItem，預設為「未播放」
         self.status_item = Gtk.MenuItem(label="未播放")
-        self.status_item.set_sensitive(False)  # 灰掉無法點擊
+        self.status_item.set_sensitive(True)  # 灰掉無法點擊
+        self.status_item.connect("activate",self.dummy)
         menu.append(self.status_item)
 
         for label, url in self.streams:
-            item = Gtk.MenuItem(label=label)
+            item = Gtk.MenuItem(label="▶️ "+label)
             item.connect("activate", self.on_stream_selected, label, url)
             menu.append(item)
+        
+        reload_item = Gtk.MenuItem(label="🔁 重新載入串流清單")
+        reload_item.connect("activate", self.reload_streams)
+        menu.append(reload_item)
 
-        stop_item = Gtk.MenuItem(label="停止播放")
+        stop_item = Gtk.MenuItem(label="⏹️ 停止播放")
         stop_item.connect("activate", self.stop_playback)
         menu.append(stop_item)
 
-        quit_item = Gtk.MenuItem(label="退出")
+        quit_item = Gtk.MenuItem(label="⏏️ 退出")
         quit_item.connect("activate", self.quit)
         menu.append(quit_item)
 
         menu.show_all()
         self.indicator.set_menu(menu)
+    
+    def reload_streams(self, *args):
+        self.streams = self.load_streams()
+        self.build_menu()
+        self.notify("✅ 串流清單已重新載入")
+
+    def start_marquee(self):
+        self.marquee_pos = 0
+        GLib.timeout_add(500, self.scroll_title)
+
+    def scroll_title(self):
+        if not self.current_title:
+            return False
+        title = self.current_title
+        if len(title) <= 24:
+            display = title
+        else:
+            pos = self.marquee_pos % (len(title) + 4)
+            padded = title + "     "
+            display = padded[pos:pos+24]
+            self.marquee_pos += 1
+
+        GLib.idle_add(self.status_item.set_label, f"▷ {display}")
+        return True
 
     def on_stream_selected(self, widget, label, url):
         self.stop_playback()
@@ -102,13 +131,14 @@ class MPVWidget:
         self.ipc_stop_flag.clear()
         self.ipc_thread = threading.Thread(target=self.ipc_listen_loop, daemon=True)
         self.ipc_thread.start()
-    
+
     def update_status_title(self, title):
         if hasattr(self, "status_item"):
-            GLib.idle_add(self.status_item.set_label, f"🎶 {title}")
+            GLib.idle_add(self.status_item.set_label, f"▷ {title}")
             GLib.idle_add(self.status_item.show)
             # 雖然 GNOME 可能不顯示
         GLib.idle_add(self.indicator.set_title, f"正在播放：{title}")
+        self.start_marquee()
 
     def ipc_listen_loop(self):
         try:
@@ -169,6 +199,9 @@ class MPVWidget:
     def quit(self, widget):
         self.stop_playback()
         Gtk.main_quit()
+    
+    def dummy(self,widget):
+        pass
 
 
 if __name__ == "__main__":
