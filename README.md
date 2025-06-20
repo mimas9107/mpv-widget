@@ -5,11 +5,12 @@
 1. 更新 title處理24個字元後會插入一個 \n避免 menu中顯示過長字串.
 
 ---
-### v1.5 2025/06/20 
-1. 捨棄 notify-send指令的 殭屍執行緒問題, 改採用 Notify來推送通知.
-2. 在 system tray的圖示下拉可以顯示目前播放曲目.
-3. 修正 mpv子執行緒的 mpvsocket與主程式的先後polling機制. 
-4. 補充：debug mpvsocket訊息工具指令, 
+### ~v1.5 2025/06/20 
+1. ![參考changelog](changelog.md)
+2. 捨棄 notify-send指令的 殭屍執行緒問題, 改採用 Notify來推送通知.
+3. 在 system tray的圖示下拉可以顯示目前播放曲目.
+4. 修正 mpv子執行緒的 mpvsocket與主程式的先後polling機制. 
+5. 補充：debug mpvsocket訊息工具指令, 
 ```bash
 echo '{"command": ["observe_property", 1, "metadata"]}' | socat - /tmp/mpvsocket
 
@@ -30,17 +31,23 @@ echo '{"command": ["get_property", "metadata"]}' | socat - /tmp/mpvsocket
 
 * 點選清單即播放；再點「停止播放」即中止 mpv
 
-* 使用 notify-send 顯示目前播放內容
-
-![screenshot](image/screenshot.png)
+![screenshot](image/screenshot2.png)
 
 
 ### 檔案結構
 ```
-mpv-widget/
-├── mpv_widget.py                  ← 主程式
-├── mpvwidget.desktop              ← 可選啟動器（放入 ~/.local/share/applications/）
-└── config/mpvwidget-site.conf     ← 用戶自定的串流清單檔案（放在 ~/.config/）
+mpv-widget
+├── architecture-gpt.md      ##要讓ai / gpt快速讀懂架構的文件
+├── changelog.md             ##版本紀錄
+├── config
+│   └── mpvwidget-site.conf ##串流站台設定檔
+├── image
+│   └── screenshot2.png     ##專案說明文件會嵌入的範例圖 
+├── mpvwidget.desktop        ##要安裝到 ~/.config/autostart的捷徑檔
+├── mpv_widget.py            ##主程式
+├── install.sh               ##安裝程式
+├── readme-gpt.md            ##要讓ai / gpt快速讀懂架構的文件
+└── README.md                ##本說明文件
 ```
 
 ### 安裝需求
@@ -48,7 +55,8 @@ mpv-widget/
 sudo apt update
 sudo apt install mpv python3-gi gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 libnotify-bin
 ```
-
+##[手動]
+---
 ### 使用者安裝步驟
 ```
 git clone <this_repo_url>
@@ -96,15 +104,7 @@ Exec=/home/YOUR_USERNAME/bin/mpv_widget.py
 Icon=media-playback-start
 Terminal=false
 Categories=Audio;Player;
+Comment=控制 mpv 播放器的 GNOME 小工具
 ====
 ```
-
-### 後續延伸設定：
-mpv 可以加入參數 --audio-buffer=\<num\> (default=0.2) 
-我這邊設定 \<num\> =10
-並且在 on_stream_selected函數中
-```
-... subprocess.Popen(["mpv","--no-video","--audio-buffer=10",url])
-```
-加入參數清單, 可讓 mpv執行時比較不會因為網路狀況造成斷斷續續.
 

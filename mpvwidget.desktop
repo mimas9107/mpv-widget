@@ -5,4 +5,4 @@ Exec=/home/YOUR_USERNAME/bin/mpv_widget.py
 Icon=media-playback-start
 Terminal=false
 Categories=Audio;Player;
-
+Comment=控制 mpv 播放器的 GNOME 小工具
