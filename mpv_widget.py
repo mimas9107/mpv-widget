@@ -8,6 +8,7 @@ import socket
 import threading
 import time
 
+# GTK 與 AppIndicator 初始化
 gi.require_version("Gtk", "3.0")
 gi.require_version("Notify", "0.7")
 gi.require_version("AyatanaAppIndicator3", "0.1")
@@ -15,7 +16,7 @@ from gi.repository import Gtk, Notify, GLib, AyatanaAppIndicator3 as AppIndicato
 
 CONFIG_PATH = os.path.expanduser("~/.config/mpvwidget-site.conf")
 ICON_NAME = "media-playback-start"
-SOCKET_PATH = "/tmp/mpvsocket"
+SOCKET_PATH = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "mpvsocket")
 
 class MPVWidget:
     def __init__(self):
@@ -35,6 +36,12 @@ class MPVWidget:
         self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         self.build_menu()
 
+        self.try_attach_to_existing_mpv()
+        
+        self.poll_thread = None
+        self.poll_stop_flag = threading.Event()
+
+
     def load_streams(self):
         streams = []
         if os.path.exists(CONFIG_PATH):
@@ -48,17 +55,16 @@ class MPVWidget:
     def build_menu(self):
         menu = Gtk.Menu()
 
-        # 狀態顯示的 MenuItem，預設為「未播放」
         self.status_item = Gtk.MenuItem(label="未播放")
-        self.status_item.set_sensitive(True)  # 灰掉無法點擊
-        self.status_item.connect("activate",self.dummy)
+        self.status_item.set_sensitive(True)
+        self.status_item.connect("activate", self.dummy)
         menu.append(self.status_item)
 
         for label, url in self.streams:
-            item = Gtk.MenuItem(label="▶️ "+label)
+            item = Gtk.MenuItem(label="▶️ " + label)
             item.connect("activate", self.on_stream_selected, label, url)
             menu.append(item)
-        
+
         reload_item = Gtk.MenuItem(label="🔁 重新載入串流清單")
         reload_item.connect("activate", self.reload_streams)
         menu.append(reload_item)
@@ -73,7 +79,7 @@ class MPVWidget:
 
         menu.show_all()
         self.indicator.set_menu(menu)
-    
+
     def reload_streams(self, *args):
         self.streams = self.load_streams()
         self.build_menu()
@@ -92,15 +98,30 @@ class MPVWidget:
         else:
             pos = self.marquee_pos % (len(title) + 4)
             padded = title + "     "
-            display = padded[pos:pos+24]
+            display = padded[pos:pos + 24]
             self.marquee_pos += 1
 
         GLib.idle_add(self.status_item.set_label, f"▷ {display}")
         return True
 
+    def try_attach_to_existing_mpv(self):
+        if os.path.exists(SOCKET_PATH):
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                    s.connect(SOCKET_PATH)
+                self.notify("🌀 已接管現有 mpv 播放")
+                self.ipc_stop_flag.clear()
+                self.ipc_thread = threading.Thread(target=self.ipc_listen_loop, daemon=True)
+                self.ipc_thread.start()
+                return True
+            except socket.error:
+                os.remove(SOCKET_PATH)
+        return False
 
     def on_stream_selected(self, widget, label, url):
         self.stop_playback()
+        self.kill_orphan_mpv()
+
         self.current_label = label
         if os.path.exists(SOCKET_PATH):
             os.remove(SOCKET_PATH)
@@ -108,15 +129,9 @@ class MPVWidget:
         self.current_proc = subprocess.Popen([
             "mpv", "--no-video",
             "--input-ipc-server=" + SOCKET_PATH,
-            "--cache=yes", "--cache-secs=20",
+            "--cache=yes", "--cache-secs=30",
             url
         ])
-        ## 稍後再取得 metadata (這裡是初版本利用的架構, 在引入 thread自己控制就捨棄了, 但坑可能就在這！)
-        # GLib.timeout_add_seconds(2, self.try_show_metadata)
-        
-        ## debug發現上面開的 mpv socket可能與接下來的 thread有關,
-        ##所以暫停 2秒讓 mpv建好mpvsocket取好資料在開始執行緒監聽
-        # time.sleep(2)
 
         for _ in range(60):
             if os.path.exists(SOCKET_PATH):
@@ -126,43 +141,38 @@ class MPVWidget:
                     break
                 except socket.error:
                     pass
-            time.sleep(0.1)  
-        
-        # 啟動監聽執行緒
+            time.sleep(0.1)
+
         self.ipc_stop_flag.clear()
         self.ipc_thread = threading.Thread(target=self.ipc_listen_loop, daemon=True)
         self.ipc_thread.start()
+        # 如果是本地 cvlc，啟動 status.xml polling
+        if "localhost" in url or "127.0.0.1" in url:
+            self.poll_stop_flag.clear()
+            self.poll_thread = threading.Thread(target=self.poll_vlc_status, daemon=True)
+            self.poll_thread.start()
+        else:
+            self.poll_stop_flag.set()
+            self.poll_thread = None
 
-    
-    def salt_title(self, title):
-        i=0
-        buf=""
-        if len(title)>24:
-            for c in title:
-               i=i+1
-               buf=buf+c
-               if(i%24==0):
-                   buf+="\n"
-                   i=0
-            title=buf
-        return title
- 
+
+    def kill_orphan_mpv(self):
+        if os.path.exists(SOCKET_PATH):
+            try:
+                os.remove(SOCKET_PATH)
+            except:
+                pass
+            subprocess.call(["pkill", "-f", "mpv.*--input-ipc-server=" + SOCKET_PATH])
+
     def update_status_title(self, title):
-        if hasattr(self, "status_item"):
-            GLib.idle_add(self.status_item.set_label, f"▷ {self.salt_title(title)}")
-#             GLib.idle_add(self.status_item.set_label, f"▷ {title}")
-            GLib.idle_add(self.status_item.show)
-            # 雖然 GNOME 可能不顯示
-#         GLib.idle_add(self.indicator.set_title, f"正在播放：{self.salt_title(title)}")
+        GLib.idle_add(self.status_item.set_label, f"▷ {title}")
         GLib.idle_add(self.indicator.set_title, f"正在播放：{title}")
         self.start_marquee()
-
 
     def ipc_listen_loop(self):
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
                 s.connect(SOCKET_PATH)
-                # 訂閱 metadata 屬性
                 subscribe_cmd = {"command": ["observe_property", 1, "metadata"]}
                 s.sendall(json.dumps(subscribe_cmd).encode() + b"\n")
                 get_cmd = {"command": ["get_property", "metadata"]}
@@ -170,7 +180,6 @@ class MPVWidget:
                 buffer = b""
                 while not self.ipc_stop_flag.is_set():
                     data = s.recv(4096)
-                    # print(data) ## socket debug
                     if not data:
                         break
                     buffer += data
@@ -178,17 +187,15 @@ class MPVWidget:
                         line, buffer = buffer.split(b"\n", 1)
                         if line:
                             self.handle_ipc_message(line)
-                            # print(line,buffer,end='\r',flush=False)
-        except Exception as e:
-            # 連線失敗或結束時不必強制處理
+        except Exception:
             pass
 
     def handle_ipc_message(self, raw_json_bytes):
         try:
             msg = json.loads(raw_json_bytes.decode())
-            if msg.get("event") == "property-change" or msg.get("error")=="success":
+            if msg.get("event") == "property-change" or msg.get("error") == "success":
                 metadata = msg.get("data", {})
-                title = metadata.get("icy-title") or metadata.get("title") or None
+                title = metadata.get("icy-title") or metadata.get("title")
                 if title and title != self.current_title:
                     self.current_title = title
                     self.update_status_title(title)
@@ -196,17 +203,19 @@ class MPVWidget:
         except Exception:
             pass
 
-    
     def stop_playback(self, *args):
         if self.current_proc and self.current_proc.poll() is None:
             self.current_proc.terminate()
         self.current_proc = None
-
-        # 停止 IPC 監聽執行緒
         self.ipc_stop_flag.set()
         if self.ipc_thread:
             self.ipc_thread.join()
             self.ipc_thread = None
+        
+        self.poll_stop_flag.set()
+        if self.poll_thread:
+            self.poll_thread.join()
+            self.poll_thread = None
 
         self.notify(f"已停止：{self.current_label}")
 
@@ -217,12 +226,31 @@ class MPVWidget:
     def quit(self, widget):
         self.stop_playback()
         Gtk.main_quit()
-    
-    def dummy(self,widget):
+
+    def dummy(self, widget):
         pass
+    def poll_vlc_status(self):
+        while not self.poll_stop_flag.is_set():
+            try:
+                out = subprocess.check_output(["curl", "-u", ":vlcpass", "-s", "http://localhost:8081/requests/status.xml"], timeout=2)
+                import xml.etree.ElementTree as ET
+                tree = ET.fromstring(out)
+                title = None
+                for info in tree.findall(".//info"):
+                    if info.attrib.get("name") == "title":
+                        title = info.text
+                        break
+                if title and title != self.current_title:
+                    self.current_title = title
+                    self.update_status_title(title)
+                    GLib.idle_add(self.notify, f"🎵 本地播放：\n{title}")
+            except Exception:
+                pass
+            time.sleep(5)
 
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = MPVWidget()
     Gtk.main()
+
