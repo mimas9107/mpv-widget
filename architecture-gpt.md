@@ -72,7 +72,10 @@
 - 使用 `observe_property` 訂閱 metadata
 - 並搭配初始的 `get_property`，解決 mpv 啟動初期 metadata 不主動推送的問題
 - icy-title 的來源為 HTTP ICY 資訊（通常為電台所提供）
-
+- 新增判斷來源 url是否為本地端服務, 交由 poll_vlc_status()獲取 title資料： 
+```python  
+out = subprocess.check_output(["curl", "-u", ":vlcpass", "-s", "http://localhost:8081/requests/status.xml"])
+```
 ---
 
 ### ✅ 設計重點與可擴充建議
@@ -86,5 +89,5 @@
 
 ---
 
-> 本文件設計目標為「讓 AI 能快速理解本專案結構、執行流程與依賴項目」，可配合 `LESSON_LEARNED.md` 一併理解專案演進脈絡。
+> 本文件設計目標為「讓 AI 能快速理解本專案結構、執行流程與依賴項目」，可配合 `changelog.md` 一併理解專案演進脈絡。
 

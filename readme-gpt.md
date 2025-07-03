@@ -63,7 +63,7 @@ NPO Radio1 | https://icecast.omroep.nl/radio1-bb-mp3
 
 ## 📈 發展歷程
 
-請參考 `LESSON_LEARNED.md`，記錄 v1.0 ~ v1.5 各階段重點改進。
+請參考 `changelog.md`，記錄各階段重點改進。
 
 ## 🔮 未來可能功能
 

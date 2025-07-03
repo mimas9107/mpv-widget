@@ -46,5 +46,24 @@
 
 ---
 
-> 本專案採持續迭代方式精進，未來若支援播放記錄、快捷鍵或封裝安裝，將另記於後續版本紀錄。
+### * 多來源 mpv 播放情境下，若遇本地 cvlc raw stream，必須用 python polling status.xml 更新目前曲目資訊，同時保留 icy-title 事件處理，達成一致的托盤顯示。
 
+**技術解決重點**
+
+    - VLC 其實會透過 http://localhost:8081/requests/status.xml 提供目前曲目信息
+
+    - 在 python 中額外啟動一個 thread
+      → 定期輪詢 status.xml
+      → 把拿到的 title 直接更新 self.current_title
+      → 這樣就能在 AppIndicator 中正確顯示本地串流的曲目
+
+    - 同時保留原本 mpv 的 metadata 監聽邏輯
+      → 讓其他外部線上電台依然可自動處理 icy-title
+    
+    - {"command": ["show-text",...]} 指令只能讓 mpv 顯示 OSD，不會回寫 metadata, 也就是我們不是 icecast server我們無從下手改 metadata,
+
+    - VLC 不會主動把曲目送到 mpv, 必須靠自己的程式作為「協調者」
+      → 主動抓 status.xml
+      → 並更新 GUI
+
+    - 維持 polling thread 與 mpv 的 IPC thread 並行，邏輯互不干擾

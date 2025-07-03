@@ -1,3 +1,7 @@
+### v1.6 
+搭配 vlc本地端播放成串流服務 http://localhost:8080/audio.mp3, 
+以及 抓取服務中 http://localhost:8081/request/status.xml曲目資料,
+
 ### v1.5 feature2 2025/06/20
 1. 增加 title超過 24個字會自動滾動顯示.
 
