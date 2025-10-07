@@ -1,3 +1,4 @@
+# 🎧 MPV Widget - GNOME System Tray 音樂播放控制器
 ### v1.6 
 搭配 vlc本地端播放成串流服務 http://localhost:8080/audio.mp3, 
 以及 抓取服務中 http://localhost:8081/request/status.xml曲目資料,
